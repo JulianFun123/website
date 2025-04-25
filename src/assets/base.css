@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+body {
+    font-family: 'Funnel Display Variable', system-ui;
+}
+
+body, html, #app {
+    @apply h-full;
+}
+
+body {
+    @apply dark:bg-black dark:text-white;
+}
