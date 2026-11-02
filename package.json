@@ -1,0 +1,34 @@
+{
+  "name": "julianwebseite",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev",
+    "generate": "nuxt generate",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test tests/*.test.mjs",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "@fontsource/google-sans": "^5.3.2",
+    "@fontsource/google-sans-code": "^5.3.2",
+    "@nuxtjs/mdc": "^0.23.2",
+    "@nuxtjs/tailwindcss": "6.14.0",
+    "@pinia/nuxt": "1.0.3",
+    "@vueuse/nuxt": "15.0.0",
+    "motion-v": "^2.10.0",
+    "nuxt": "^4.6.3",
+    "pinia": "^4.1.0",
+    "vue": "^3.5.44",
+    "vue-router": "^5.4.0"
+  },
+  "devDependencies": {
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "vue-tsc": "3.3.14"
+  }
+}

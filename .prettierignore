@@ -1,0 +1,12 @@
+node_modules/
+.nuxt/
+.output/
+.nitro/
+.data/
+.cache/
+dist/
+coverage/
+.idea/
+.codex/
+.env*
+pnpm-lock.yaml
