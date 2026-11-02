@@ -86,8 +86,13 @@ const emit = defineEmits<{ activate: []; dragStart: []; dragEnd: [] }>()
         >
           <PeekingFriends v-if="index === 3" :enabled="draggable && !reduceMotion" />
           <div class="relative z-10 bg-white p-[6%] pb-[24%] shadow-lg">
-            <img
+            <NuxtImg
               :src="polaroid.src"
+              width="240"
+              height="300"
+              densities="1x 2x"
+              format="webp"
+              quality="80"
               alt=""
               draggable="false"
               class="pointer-events-none block aspect-[4/5] w-full select-none object-cover"
