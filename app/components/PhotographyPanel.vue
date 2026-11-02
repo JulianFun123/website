@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { polaroids } from '~/data/photography'
 import PolaroidCard from '~/components/photography/PolaroidCard.vue'
+import WanderingPhotoFriend from '~/components/photography/WanderingPhotoFriend.vue'
+
+const { open: gameOpen } = useAdventureAccess()
 
 const {
   container,
@@ -36,11 +39,20 @@ const {
         @drag-start="handleDragStart(index)"
         @drag-end="handleDragEnd"
       />
+      <WanderingPhotoFriend
+        :enabled="!isMobile && !gameOpen"
+        :reduce-motion="reduceMotion"
+        :photos="polaroids"
+        @play="gameOpen = true"
+      />
     </div>
   </div>
 </template>
 
 <style scoped>
+.polaroid-stage {
+  isolation: isolate;
+}
 @media (max-width: 767px) {
   .polaroid-stage {
     height: 100%;

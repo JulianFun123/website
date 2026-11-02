@@ -31,7 +31,24 @@ const exit = computed(() => ({ opacity: 0, y: reduceMotion.value ? 0 : -25 }))
       <div class="paper paper-back" aria-hidden="true"><span>source / archive</span></div>
       <div class="paper paper-middle" aria-hidden="true"><span>selected / work</span></div>
       <div class="paper paper-front">
-        <div class="paper-top"><span>PROJECT FILE</span><span>↗</span></div>
+        <div class="paper-top">
+          <span>PROJECT FILE</span
+          ><svg class="paper-friend" viewBox="0 0 24 20" fill="none" aria-hidden="true">
+            <path
+              class="paper-eyes"
+              d="M7 6V8M17 6V8"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+            <path
+              d="M8 13Q12 17 16 13"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            />
+          </svg>
+        </div>
         <Transition name="file-number" mode="out-in"
           ><span :key="number" class="paper-number">{{ number }}</span></Transition
         >
@@ -93,6 +110,37 @@ const exit = computed(() => ({ opacity: 0, y: reduceMotion.value ? 0 : -25 }))
   border-radius: 2px;
   background: #fff;
   box-shadow: 1px 6px 9px -7px #0003;
+  transition: transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.index-object:hover .paper-back {
+  transform: rotate(-15deg) translate(-8px, 0);
+}
+.index-object:hover .paper-middle {
+  transform: rotate(-7deg) translate(-3px, -3px);
+}
+.index-object:hover .paper-front {
+  transform: rotate(1deg) translateY(-4px);
+}
+.paper-friend {
+  width: 22px;
+  height: 18px;
+  color: #afa58f;
+}
+.paper-eyes {
+  transform-origin: 12px 7px;
+  animation: paper-blink 13s infinite;
+}
+@keyframes paper-blink {
+  0%,
+  65%,
+  68%,
+  100% {
+    transform: scaleY(1);
+  }
+  66%,
+  67% {
+    transform: scaleY(0.1);
+  }
 }
 .paper-back {
   transform: rotate(-11deg) translate(-5px, 3px);
@@ -251,6 +299,21 @@ const exit = computed(() => ({ opacity: 0, y: reduceMotion.value ? 0 : -25 }))
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .paper {
+    transition: none;
+  }
+  .paper-eyes {
+    animation: none;
+  }
+  .index-object:hover .paper-back {
+    transform: rotate(-11deg) translate(-5px, 3px);
+  }
+  .index-object:hover .paper-middle {
+    transform: rotate(-5deg);
+  }
+  .index-object:hover .paper-front {
+    transform: rotate(4deg);
+  }
   .file-number-enter-active,
   .file-number-leave-active {
     transition: none;

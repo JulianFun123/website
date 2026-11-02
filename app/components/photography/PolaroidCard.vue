@@ -2,6 +2,7 @@
 import { motion } from 'motion-v'
 import type { Polaroid } from '~/data/photography'
 import type { PolaroidMagnet } from '~/composables/useMagneticPolaroids'
+import PeekingFriends from '~/components/photography/PeekingFriends.vue'
 
 defineProps<{
   polaroid: Polaroid
@@ -78,17 +79,20 @@ const emit = defineEmits<{ activate: []; dragStart: []; dragEnd: [] }>()
             rotate: `${polaroid.rotate}deg`,
             touchAction: draggable ? 'none' : 'pan-y',
           }"
-          class="cursor-grab touch-none bg-white p-[6%] pb-[24%] shadow-lg active:cursor-grabbing"
+          class="relative cursor-grab touch-none active:cursor-grabbing"
           @pointerdown="emit('activate')"
           @drag-start="emit('dragStart')"
           @drag-end="emit('dragEnd')"
         >
-          <img
-            :src="polaroid.src"
-            alt=""
-            draggable="false"
-            class="pointer-events-none block aspect-[4/5] w-full select-none object-cover"
-          />
+          <PeekingFriends v-if="index === 3" :enabled="draggable && !reduceMotion" />
+          <div class="relative z-10 bg-white p-[6%] pb-[24%] shadow-lg">
+            <img
+              :src="polaroid.src"
+              alt=""
+              draggable="false"
+              class="pointer-events-none block aspect-[4/5] w-full select-none object-cover"
+            />
+          </div>
         </motion.div>
       </motion.div>
     </motion.div>

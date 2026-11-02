@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { projects } from '~/data/projects'
 import ProjectFile from '~/components/projects/ProjectFile.vue'
+import PocketCompanion from '~/components/site/PocketCompanion.vue'
 
 definePageMeta({ layout: false, leftPanel: 'dev' })
 useSeoMeta({ title: 'Julian Gojani · Home', description: 'Julian Gojani' })
@@ -27,6 +28,7 @@ function openProject(id: string) {
     </ol>
 
     <footer class="index-footer">
+      <PocketCompanion kind="folder" />
       <div>
         <a href="https://github.com/julianfun123" target="_blank" rel="noopener noreferrer"
           >julianfun123 ↗</a
@@ -44,6 +46,11 @@ function openProject(id: string) {
   color: #202020;
 }
 .index-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
   padding-top: 30px;
   font-size: 10px;
   color: #aaa;

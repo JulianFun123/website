@@ -26,6 +26,11 @@ export function useMagneticPolaroids(polaroids: Polaroid[]) {
 
   function handleMouseMove(event: PointerEvent) {
     if (!container.value || reduceMotion.value || isMobile.value) return
+    if (
+      event.target instanceof Element &&
+      event.target.closest('.peeking-friends, .wandering-friend, .adventure-dialog')
+    )
+      return
 
     const bounds = container.value.getBoundingClientRect()
 

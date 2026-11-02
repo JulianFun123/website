@@ -41,6 +41,7 @@ watch(
 
 <style scoped>
 .site-nav-link {
+  position: relative;
   color: var(--nav-text);
   transition: color 300ms ease;
 }
@@ -51,13 +52,17 @@ watch(
 .site-nav-link.is-active {
   color: var(--text);
 }
+.site-nav-link.is-active::after {
+  transform: rotate(-3deg) scaleX(1);
+}
 
 .site-nav-link:focus-visible {
   outline: 1px solid currentColor;
   outline-offset: 4px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .site-nav-link {
+  .site-nav-link,
+  .site-nav-link::after {
     transition: none;
   }
 }
@@ -83,6 +88,9 @@ watch(
     white-space: nowrap;
     font-size: 16px;
     line-height: 1.4;
+  }
+  .site-nav-link::after {
+    bottom: 6px;
   }
 }
 </style>

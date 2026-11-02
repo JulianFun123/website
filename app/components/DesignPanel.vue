@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { motion, useReducedMotion } from 'motion-v'
 import { designConfig } from '~/data/design'
+import PocketCompanion from '~/components/site/PocketCompanion.vue'
 
 const { active, selectedId, hoveredId, clearSelection } = useDesignSelection()
 const reduceMotion = useReducedMotion()
@@ -29,6 +30,7 @@ const reduceMotion = useReducedMotion()
       />
     </div>
     <footer v-if="active" class="design-panel-footer">{{ active.title }}</footer>
+    <div v-else class="design-doodle"><PocketCompanion kind="pencil" /></div>
   </motion.div>
 </template>
 
@@ -140,6 +142,10 @@ const reduceMotion = useReducedMotion()
   color: #aaa;
   margin-top: auto;
   padding-top: 35px;
+}
+.design-doodle {
+  margin-top: auto;
+  padding-top: 24px;
 }
 button:focus-visible {
   outline: 1px solid #333;

@@ -4,6 +4,7 @@ import DevPanel from '~/components/DevPanel.vue'
 import PhotographyPanel from '~/components/PhotographyPanel.vue'
 import VideoPanel from '~/components/VideoPanel.vue'
 import DesignPanel from '~/components/DesignPanel.vue'
+import AdventureLauncher from '~/components/site/AdventureLauncher.vue'
 
 const route = useRoute()
 const reduceMotion = useReducedMotion()
@@ -15,9 +16,10 @@ const panels = {
 }
 const leftPanel = computed(() => {
   const panel = route.meta.leftPanel
+  if (panel === false) return false
   return panel === 'photography' || panel === 'video' || panel === 'design' ? panel : 'dev'
 })
-const panelComponent = computed(() => panels[leftPanel.value])
+const panelComponent = computed(() => (leftPanel.value === false ? null : panels[leftPanel.value]))
 </script>
 
 <template>
@@ -25,7 +27,8 @@ const panelComponent = computed(() => panels[leftPanel.value])
     <template #left>
       <AnimatePresence mode="wait">
         <motion.div
-          :key="leftPanel"
+          v-if="panelComponent"
+          :key="leftPanel || 'none'"
           class="size-full"
           :initial="{ opacity: 0 }"
           :animate="{ opacity: 1 }"
@@ -41,6 +44,7 @@ const panelComponent = computed(() => panels[leftPanel.value])
     </template>
     <NuxtPage />
   </NuxtLayout>
+  <AdventureLauncher />
 </template>
 
 <style>

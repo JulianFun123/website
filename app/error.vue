@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { NuxtError } from '#app'
 import LostFolder from '~/components/error/LostFolder.vue'
+import AdventureLauncher from '~/components/site/AdventureLauncher.vue'
 
 const props = defineProps<{ error: NuxtError }>()
 const status = computed(() => props.error.status || props.error.statusCode || 500)
@@ -57,6 +58,7 @@ function goHome() {
         ><span class="found-stamp">YOU ARE HERE <span aria-hidden="true">✳</span></span>
       </footer>
     </div>
+    <AdventureLauncher />
   </main>
 </template>
 

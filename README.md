@@ -131,6 +131,50 @@ visitors do not save layout changes.
 
 ## Code maintenance
 
+### Pip & the Missing Colours
+
+On desktop, Pip occasionally hides behind the photographs, peeks out and hops
+between them. Click Pip to open the eight-chapter adventure. The game is entirely
+local: it makes no API requests and stores progress in this browser under
+`pip-and-the-missing-colours-v1`. Version-1 four-chapter saves are migrated to the
+expanded journey without losing their progress. Once a game has been started,
+a small Pip in the bottom-right corner reopens the adventure on every page.
+The larger game bundle is loaded only when the adventure is opened.
+
+The paper overworld in `app/data/adventureJourney.ts` has eleven stops: eight
+photographs and three arcade detours. Finish a stop to unlock the next; previous
+stops remain replayable. Each photograph keeps its own checkpoint. Arcade medals
+and best scores are permanent; short arcade rounds restart when you leave them.
+Arrow keys select an overworld island and Enter visits it.
+
+The arcade games are **Pockets Full of Sky** (steer a basket with arrows/A/D or
+pointer and avoid clouds), **The Misplaced Postcards** (six memory pairs), and
+**The Firefly Waltz** (Space or a camera button for timed photographs). They all
+include a gentler mode and pause when the browser tab is hidden.
+
+Use arrows/WASD to move, E to talk, interact or wait, Space for the camera,
+Z to undo, R to restart the current chapter, J for the notebook and P to pause.
+Escape closes an overlay first, then saves and closes the adventure. Pointer
+controls are included. Reduced-motion settings disable decorative animation.
+
+Chapter maps, dialogue and illustrated story frames live in
+`app/data/photoAdventure.ts`. Each map has nine columns and seven rows:
+`#` trees, `S` start, `*` memory spark, `N` friend, `G` exit,
+`B` paperweight, `P` pressure switch, `=` bridge, `L` lantern,
+`X` memory constellation and `V` final camera mark. The extended worlds add
+`>`/`<`/`^`/`v` breezes, `I` slippery ice, two paired `O` paper portals, and `T`
+tidal crossings. Tides rest for two turns and rise for two; a camera flash holds
+the crossing still for four hops.
+
+The pure game rules and save validation live in `app/utils/photoAdventure.ts`;
+the composable owns progression, undo, keyboard handling and persistence.
+The game tests check that all eight chapters can actually be completed,
+including special terrain, the rain bridge, camera cooldown and memory sequence.
+They also cover save migration, unlock order, high scores, all six postcard pairs,
+the catch-game win threshold and timing all twelve fireflies.
+
+### Checks
+
 ```sh
 npm run format       # Format source files with the pinned local Prettier version
 npm run format:check # Check formatting without changing files

@@ -1,9 +1,5 @@
 import introduction from '~/content/design/introduction.md?raw'
-import juflix from '~/content/design/juflix.md?raw'
-import pastefy from '~/content/design/pastefy.md?raw'
 import flags from '~/content/design/flags.md?raw'
-import typography from '~/content/design/typography.md?raw'
-import palette from '~/content/design/palette.md?raw'
 
 export interface DesignElement {
   id: string
@@ -42,7 +38,6 @@ export const designConfig: { title: string; introduction: string; elements: Desi
       src: '/images/design/flag-icons.svg',
       alt: 'Collection of flat flag icons',
       background: '#01102E',
-      content: flags,
     },
 
     ...['de', 'eu', 'ua', 'gb', 'si'].map(

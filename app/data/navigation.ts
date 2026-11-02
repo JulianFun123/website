@@ -16,11 +16,7 @@ export const navigationLinks = [
     url: '/video',
   },
   {
-    text: 'CV',
-    url: '/cv',
-  },
-  {
-    text: 'Setup',
-    url: '/setup',
+    text: 'Imprint',
+    url: '/imprint',
   },
 ]
