@@ -7,6 +7,7 @@ import DesignPanel from '~/components/DesignPanel.vue'
 import AdventureLauncher from '~/components/site/AdventureLauncher.vue'
 
 const route = useRoute()
+const standalone = computed(() => route.meta.standalone === true)
 const reduceMotion = useReducedMotion()
 const panels = {
   dev: DevPanel,
@@ -23,7 +24,8 @@ const panelComponent = computed(() => (leftPanel.value === false ? null : panels
 </script>
 
 <template>
-  <NuxtLayout name="main">
+  <NuxtPage v-if="standalone" />
+  <NuxtLayout v-else name="main">
     <template #left>
       <AnimatePresence mode="wait">
         <motion.div
@@ -44,7 +46,7 @@ const panelComponent = computed(() => (leftPanel.value === false ? null : panels
     </template>
     <NuxtPage />
   </NuxtLayout>
-  <AdventureLauncher />
+  <AdventureLauncher v-if="!standalone" />
 </template>
 
 <style>

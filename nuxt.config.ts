@@ -4,6 +4,7 @@ export default defineNuxtConfig({
     unsplashAccessKey: '',
   },
   nitro: {
+    experimental: { websocket: true },
     storage: {
       unsplash: { driver: 'memory' },
     },

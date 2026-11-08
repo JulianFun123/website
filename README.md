@@ -131,6 +131,39 @@ visitors do not save layout changes.
 
 ## Code maintenance
 
+### The Paper Garden / multiplayer shooter
+
+`/shooter` is a standalone 3D free-for-all with Pip-like characters. Three.js is
+loaded on this route; the rest of the portfolio keeps its normal layout.
+The public lobby uses the native Nitro WebSocket route `/pip-arena` and holds
+up to 12 players. Rounds last three minutes, followed by a seven-second results
+break. Four camera flashes tag a player; respawns take three seconds and include
+a brief protective shield. Health regenerates after six quiet seconds.
+
+Desktop controls: WASD/arrows to move, mouse to aim, left mouse button to shoot
+(hold for repeated flashes), Space to jump, Shift to run, Tab for scores and
+Escape to release the mouse. Touch devices have movement, drag-to-look, hop and
+flash controls. Joining and resuming require a click for browser pointer lock.
+Players can copy `/shooter`'s URL to invite a friend into the same public room.
+
+The server owns positions, collision, fire cooldowns, hit tests, health, scores
+and respawns. Clients submit only input. Lobby sizes, input rates and message
+lengths are bounded. Scores are kept for the current connection and round;
+only the chosen name and colour are remembered in browser localStorage.
+
+**Hosting:** run the production Nuxt/Nitro **Node server** with WebSocket upgrade
+support. A reverse proxy must forward `Upgrade`, `Connection` and the original
+`Host` header. This room lives in RAM in one Node process: use one instance for
+one shared public lobby. Multiple independent replicas create separate rooms;
+horizontal scaling would require a shared room service. Static hosting and
+short-lived HTTP-only serverless functions cannot run this lobby. Server
+restarts clear the round; connected clients automatically try to reconnect.
+
+Arena geometry and the input protocol live in `shared/shooter/arena.ts`, the
+authoritative simulation in `server/utils/pipArena.ts`, and the renderer in
+`app/utils/pipShooterScene.ts`. Tests cover collision, jump landings, hit blocking,
+spawn protection, cooldowns, tags, respawns, capacity and round resets.
+
 ### Pip & the Missing Colours
 
 On desktop, Pip occasionally hides behind the photographs, peeks out and hops
