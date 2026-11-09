@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { createPipShooterScene } from '~/utils/pipShooterScene'
-import { MAX_PLAYERS, PIP_COLOURS } from '~~/shared/shooter/arena'
+import { ARENA_COVER, ARENA_LIMIT, MAX_PLAYERS, PIP_COLOURS } from '~~/shared/shooter/arena'
+import { WEAPONS, WEAPON_ORDER, WEAPON_PICKUPS, type WeaponId } from '~~/shared/shooter/weapons'
 import PhotoFriendSprite from '~/components/photography/PhotoFriendSprite.vue'
 
 const game = usePipShooter()
-const { status, snapshot, wanted, error, ping, player, id, hit, damaged } = game
+const { status, snapshot, wanted, error, ping, player, id, hit, damaged, pickupNote } = game
 const canvas = ref<HTMLCanvasElement>()
 const ready = ref(false)
 const graphicsError = ref('')
@@ -14,6 +15,7 @@ const locked = ref(false)
 const touch = ref(false)
 const scores = ref(false)
 const copied = ref(false)
+const aiming = ref(false)
 const lookError = ref('')
 const keys = new Set<string>()
 const colours = ['Honey', 'Sage', 'Cloud', 'Rose', 'Biscuit', 'Mint']
@@ -57,6 +59,7 @@ function reset() {
   touchForward = 0
   touchStrafe = 0
   firing = false
+  aiming.value = false
   game.clearInput()
 }
 async function capture() {
@@ -90,8 +93,9 @@ function pointerLockChanged() {
 }
 function mouseMove(event: MouseEvent) {
   if (locked.value) {
-    yaw -= event.movementX * 0.0022
-    pitch = Math.max(-1.35, Math.min(1.35, pitch - event.movementY * 0.0022))
+    const sensitivity = aiming.value && player.value?.weapon === 'longlens' ? 0.0011 : 0.0022
+    yaw -= event.movementX * sensitivity
+    pitch = Math.max(-1.35, Math.min(1.35, pitch - event.movementY * sensitivity))
   }
 }
 function keyDown(event: KeyboardEvent) {
@@ -110,21 +114,48 @@ function keyDown(event: KeyboardEvent) {
       'ShiftLeft',
       'ShiftRight',
       'Tab',
+      'KeyG',
+      'KeyV',
+      'Digit1',
+      'Digit2',
+      'Digit3',
+      'Digit4',
+      'Digit5',
     ].includes(event.code)
   )
     event.preventDefault()
   keys.add(event.code)
   if (event.code === 'Space' && !event.repeat) game.input.jump = true
   if (event.code === 'Tab') scores.value = true
+  if (event.code === 'KeyG' && !event.repeat) game.input.grenade = true
+  if (event.code === 'KeyV' && !event.repeat) selectWeapon('knife')
+  const slot = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5'].indexOf(event.code)
+  if (slot >= 0 && !event.repeat) selectWeapon(WEAPON_ORDER[slot]!)
 }
 function keyUp(event: KeyboardEvent) {
   keys.delete(event.code)
   if (event.code === 'Tab') scores.value = false
 }
 function pointerDown(event: PointerEvent) {
-  if (event.pointerType === 'touch' || !wanted.value || event.button !== 0) return
+  if (event.pointerType === 'touch' || !wanted.value) return
+  if (event.button === 2) {
+    aiming.value = true
+    return
+  }
+  if (event.button !== 0) return
   if (!locked.value) capture()
   else firing = true
+}
+function selectWeapon(weapon: WeaponId) {
+  if (player.value && player.value.inventory[weapon] !== 0) game.input.weapon = weapon
+}
+function wheelWeapon(event: WheelEvent) {
+  if (!playing.value) return
+  event.preventDefault()
+  const available = WEAPON_ORDER.filter((weapon) => player.value?.inventory[weapon] !== 0)
+  const current = available.indexOf(player.value?.weapon ?? 'camera')
+  const next = (current + (event.deltaY > 0 ? 1 : -1) + available.length) % available.length
+  if (available[next]) selectWeapon(available[next]!)
 }
 function beginLook(event: PointerEvent) {
   if (!touch.value || !wanted.value) return
@@ -177,6 +208,7 @@ function render(now: number) {
       : 0
   game.input.yaw = yaw
   game.input.pitch = pitch
+  game.input.aim = playing.value && aiming.value
   game.input.sprint = playing.value && (keys.has('ShiftLeft') || keys.has('ShiftRight'))
   game.input.fire = !!(playing.value && alive && firing)
   scene?.draw(
@@ -188,6 +220,8 @@ function render(now: number) {
     now / 1000,
     game.consumeShots(),
     playing.value,
+    game.consumeExplosions(),
+    game.input.aim,
   )
   animation = requestAnimationFrame(render)
 }
@@ -215,9 +249,11 @@ useEventListener('mousemove', mouseMove)
 useEventListener('keydown', keyDown)
 useEventListener('keyup', keyUp)
 useEventListener('pointerup', (event: PointerEvent) => {
-  if (event.pointerType !== 'touch') firing = false
+  if (event.pointerType !== 'touch' && event.button === 0) firing = false
+  if (event.button === 2) aiming.value = false
 })
 useEventListener('blur', reset)
+useEventListener(canvas, 'wheel', wheelWeapon, { passive: false })
 useEventListener(document, 'visibilitychange', () => {
   if (document.hidden) reset()
 })
@@ -312,7 +348,7 @@ onBeforeUnmount(() => {
           {{ graphicsError || error }}
         </p>
         <footer>
-          <span>3-minute rounds · {{ MAX_PLAYERS }} places · instant respawns</span
+          <span>64 × 64 garden · {{ MAX_PLAYERS }} places · 3s respawns</span
           ><button @click="copyLink">
             {{ copied ? 'Link copied. Bring a friend ♡' : 'Invite a friend ↗' }}
           </button>
@@ -344,13 +380,21 @@ onBeforeUnmount(() => {
             <dd>Hurry a little</dd>
           </div>
           <div>
+            <dt>1–5 · wheel</dt>
+            <dd>Switch collected weapons</dd>
+          </div>
+          <div>
+            <dt>G · V · RMB</dt>
+            <dd>Grenade · knife · aim</dd>
+          </div>
+          <div>
             <dt>Tab · Esc</dt>
             <dd>Scores · release the mouse</dd>
           </div>
         </dl>
         <p>
-          Four flashes make a tag.<br />A tiny tumble, then you’re back.<br />Health grows back
-          after a quiet moment.
+          Find new gear on the glowing pedestals.<br />A tiny tumble, then you’re back.<br />Health
+          grows back after a quiet moment.
         </p>
         <small v-if="!snapshot?.players.length"
           >The garden is quiet. Be its first little visitor,<br />then share the link to start the
@@ -383,12 +427,71 @@ onBeforeUnmount(() => {
         </div>
         <button @click="leave">Pack the camera ↗</button>
       </div>
+      <div class="weapon-belt" role="group" aria-label="Collected weapons">
+        <button
+          v-for="(weapon, index) in WEAPON_ORDER"
+          :key="weapon"
+          :disabled="!player || player.inventory[weapon] === 0"
+          :class="{ equipped: player?.weapon === weapon }"
+          :style="{ '--weapon-colour': WEAPONS[weapon].colour }"
+          :aria-label="`${index + 1}: ${WEAPONS[weapon].name}`"
+          @click="selectWeapon(weapon)"
+        >
+          <kbd>{{ index + 1 }}</kbd
+          ><span>{{ WEAPONS[weapon].icon }}</span
+          ><small>{{ WEAPONS[weapon].short }}</small
+          ><b>{{ player?.inventory[weapon] === -1 ? '∞' : (player?.inventory[weapon] ?? '—') }}</b>
+        </button>
+        <button
+          :disabled="!playing || !player?.grenades"
+          class="grenade-slot"
+          aria-label="Throw confetti grenade (G)"
+          @click="game.input.grenade = true"
+        >
+          <kbd>G</kbd><span>✳</span><small>Confetti</small><b>{{ player?.grenades ?? 0 }} / 3</b>
+        </button>
+      </div>
+      <p v-if="pickupNote" class="pickup-toast" role="status">{{ pickupNote }}</p>
+      <aside class="garden-map" aria-label="Garden map and weapon pickup locations">
+        <svg :viewBox="`${-ARENA_LIMIT} ${-ARENA_LIMIT} ${ARENA_LIMIT * 2} ${ARENA_LIMIT * 2}`">
+          <rect
+            v-for="(box, index) in ARENA_COVER"
+            :key="index"
+            :x="box.x - box.w / 2"
+            :y="box.z - box.d / 2"
+            :width="box.w"
+            :height="box.d"
+            fill="#beb79d"
+          />
+          <template v-for="pickup in WEAPON_PICKUPS" :key="pickup.id">
+            <circle
+              v-if="
+                (snapshot?.pickups?.find((p) => p.id === pickup.id)?.availableAt ?? 0) <=
+                (snapshot?.now ?? 0)
+              "
+              :cx="pickup.x"
+              :cy="pickup.z"
+              r="1.2"
+              :fill="pickup.kind === 'grenades' ? '#c5a776' : WEAPONS[pickup.kind].colour"
+            />
+          </template>
+          <g
+            v-if="player"
+            :transform="`translate(${player.x} ${player.z}) rotate(${(-player.yaw * 180) / Math.PI})`"
+          >
+            <path d="M0 -2.5L1.4 1.5L0 .8L-1.4 1.5Z" fill="#786847" />
+          </g></svg
+        ><span>N ↑ · The Big Paper Garden</span>
+      </aside>
+      <div v-if="aiming && player?.weapon === 'longlens'" class="lens-overlay" aria-hidden="true">
+        <i /><i />
+      </div>
       <div class="event-feed" aria-live="polite">
         <p v-for="event in snapshot?.events.slice(-3)" :key="event.id">{{ event.text }}</p>
       </div>
       <div class="network-note">
         {{ ping }} ms <span>·</span>
-        {{ touch ? 'drag the right side to look' : 'WASD · Space · Shift · Tab' }}
+        {{ touch ? 'drag the right side to look' : '1–5 / wheel · G grenade · V knife · RMB aim' }}
       </div>
       <div v-if="status !== 'online'" class="centre-card" role="status">
         <span>⌁</span>
@@ -482,6 +585,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <div class="touch-actions">
+          <button aria-label="Toggle aiming" @click="aiming = !aiming">Aim ⌑</button>
           <button aria-label="Jump" @pointerdown.prevent="game.input.jump = true">Hop ↑</button
           ><button
             class="touch-fire"
@@ -716,6 +820,9 @@ h1 span {
   margin-top: 12px;
 }
 .lobby-notes {
+  max-height: calc(100dvh - 145px);
+  overflow-y: auto;
+  scrollbar-width: thin;
   pointer-events: auto;
   position: relative;
   background: #fffdf0dd;
@@ -1167,6 +1274,145 @@ input:focus-visible {
   outline: 2px solid #b09b6c;
   outline-offset: 4px;
 }
+.weapon-belt {
+  position: absolute;
+  z-index: 11;
+  bottom: 34px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  padding: 7px;
+  background: #fffdf0e8;
+  border: 1px solid #e0d6bd;
+  border-radius: 14px;
+  backdrop-filter: blur(6px);
+}
+.weapon-belt button {
+  position: relative;
+  width: 66px;
+  min-height: 70px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: #a3916f;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 7px 4px;
+  gap: 3px;
+}
+.weapon-belt button:disabled {
+  opacity: 0.27;
+}
+.weapon-belt button.equipped {
+  border-color: var(--weapon-colour);
+  background: #f0ead7;
+}
+.weapon-belt kbd {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  font:
+    8px 'Google Sans Code',
+    monospace;
+  color: #bdaf94;
+}
+.weapon-belt button > span {
+  font-size: 21px;
+  line-height: 1;
+}
+.weapon-belt small {
+  font:
+    8px 'Google Sans Code',
+    monospace;
+  white-space: nowrap;
+}
+.weapon-belt b {
+  font:
+    9px 'Google Sans Code',
+    monospace;
+  font-weight: 400;
+}
+.grenade-slot {
+  margin-left: 4px;
+  border-left: 1px solid #ded4bd !important;
+}
+.pickup-toast {
+  position: absolute;
+  bottom: 145px;
+  left: 50%;
+  transform: translateX(-50%);
+  font:
+    10px 'Google Sans Code',
+    monospace;
+  color: #9b8557;
+  padding: 12px 18px;
+  background: #fff9e6e6;
+  border: 1px solid #dfcda5;
+  border-radius: 12px;
+  z-index: 9;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.garden-map {
+  position: absolute;
+  right: 28px;
+  top: 108px;
+  width: 142px;
+  padding: 8px;
+  border: 1px solid #ddd4bc;
+  border-radius: 14px;
+  background: #fffdf0dd;
+  pointer-events: none;
+  z-index: 7;
+}
+.garden-map svg {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 7px;
+  background: #dfe4cf;
+}
+.garden-map > span {
+  font:
+    6px 'Google Sans Code',
+    monospace;
+  color: #a99b7b;
+  display: block;
+  text-align: center;
+  margin-top: 8px;
+}
+.lens-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+  background: radial-gradient(circle at center, transparent 0 28%, #4b4b4822 29%, #4b4b4877 80%);
+}
+.lens-overlay i:first-child {
+  position: absolute;
+  left: 50%;
+  top: 15%;
+  bottom: 15%;
+  width: 1px;
+  background: #7b755b66;
+}
+.lens-overlay i:last-child {
+  position: absolute;
+  top: 50%;
+  left: 15%;
+  right: 15%;
+  height: 1px;
+  background: #7b755b66;
+}
+@media (max-width: 1200px) {
+  .weapon-belt {
+    bottom: 145px;
+  }
+  .pickup-toast {
+    bottom: 245px;
+  }
+}
 @media (max-height: 760px) and (min-width: 801px) {
   .lobby-layout {
     top: 80px;
@@ -1272,6 +1518,67 @@ input:focus-visible {
   }
   .centre-card h2 {
     font-size: 25px;
+  }
+}
+@media (max-width: 800px) {
+  .weapon-belt {
+    bottom: 125px;
+    left: 12px;
+    right: 12px;
+    transform: none;
+    gap: 3px;
+    padding: 5px;
+    justify-content: center;
+  }
+  .weapon-belt button {
+    width: calc(100% / 6);
+    max-width: 66px;
+    min-height: 63px;
+  }
+  .weapon-belt small {
+    font-size: 7px;
+  }
+  .weapon-belt kbd {
+    font-size: 7px;
+  }
+  .pickup-toast {
+    bottom: 310px;
+    font-size: 8px;
+    padding: 10px;
+    max-width: 90%;
+    white-space: normal;
+    text-align: center;
+  }
+  .touch-movement,
+  .touch-actions {
+    bottom: 210px;
+  }
+  .touch-actions {
+    gap: 7px;
+  }
+  .touch-actions > button {
+    font-size: 10px;
+    min-width: 40px;
+  }
+  .touch-actions .touch-fire {
+    width: 58px;
+    height: 58px;
+  }
+  .garden-map {
+    width: 108px;
+    right: 12px;
+    top: 145px;
+    padding: 5px;
+  }
+  .garden-map > span {
+    font-size: 5px;
+  }
+  .network-note {
+    max-width: 90%;
+    font-size: 6px;
+  }
+  .spawn-note {
+    bottom: 300px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

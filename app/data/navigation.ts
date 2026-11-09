@@ -16,10 +16,6 @@ export const navigationLinks = [
     url: '/video',
   },
   {
-    text: 'Shooter',
-    url: '/shooter',
-  },
-  {
     text: 'Imprint',
     url: '/imprint',
   },

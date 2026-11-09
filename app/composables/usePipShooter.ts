@@ -1,6 +1,8 @@
+import { WEAPONS } from '~~/shared/shooter/weapons'
 import {
   idleInput,
   type ArenaShot,
+  type ArenaExplosion,
   type ArenaSnapshot,
   type ShooterInput,
 } from '~~/shared/shooter/arena'
@@ -14,9 +16,12 @@ export function usePipShooter() {
   const ping = ref(0)
   const hit = ref(false)
   const damaged = ref(false)
+  const pickupNote = ref('')
   const player = computed(() => snapshot.value?.players.find((p) => p.id === id.value) ?? null)
   const input = idleInput()
   const queued: ArenaShot[] = []
+  const explosions: ArenaExplosion[] = []
+  let pickupTimer: ReturnType<typeof setTimeout> | undefined
   let socket: WebSocket | undefined
   let retry: ReturnType<typeof setTimeout> | undefined
   let inputTimer: ReturnType<typeof setInterval> | undefined
@@ -54,6 +59,34 @@ export function usePipShooter() {
           const before = player.value
           snapshot.value = packet as ArenaSnapshot
           const after = player.value
+          if (before && after) {
+            const gained = (Object.keys(WEAPONS) as (keyof typeof WEAPONS)[]).find(
+              (weapon) =>
+                after.inventory[weapon] !== 0 &&
+                (before.inventory[weapon] === 0 ||
+                  after.inventory[weapon] > before.inventory[weapon]),
+            )
+            if (gained || after.grenades > before.grenades) {
+              pickupNote.value = gained
+                ? `${WEAPONS[gained].icon} ${WEAPONS[gained].name} · picked up`
+                : '✳ Confetti grenades · pocket filled'
+              clearTimeout(pickupTimer)
+              pickupTimer = setTimeout(() => {
+                pickupNote.value = ''
+              }, 2200)
+            }
+          }
+          for (const blast of (packet.explosions ?? []) as ArenaExplosion[]) {
+            explosions.push(blast)
+            if (blast.owner === id.value && blast.hits.some((target) => target !== id.value)) {
+              hit.value = true
+              clearTimeout(hitTimer)
+              hitTimer = setTimeout(() => {
+                hit.value = false
+              }, 250)
+            }
+          }
+          if (explosions.length > 25) explosions.splice(0, explosions.length - 25)
           if (before && after && after.health < before.health) {
             damaged.value = true
             clearTimeout(damageTimer)
@@ -113,12 +146,15 @@ export function usePipShooter() {
       if (wanted.value) {
         send({ type: 'input', ...input })
         input.jump = false
+        input.grenade = false
+        input.weapon = null
       }
     }, 1000 / 30)
     pingTimer = setInterval(() => send({ type: 'ping', at: Date.now() }), 2500)
   })
   onBeforeUnmount(() => {
     disposed = true
+    clearTimeout(pickupTimer)
     clearTimeout(retry)
     clearTimeout(hitTimer)
     clearTimeout(damageTimer)
@@ -136,11 +172,13 @@ export function usePipShooter() {
     ping,
     hit,
     damaged,
+    pickupNote,
     player,
     input,
     join,
     leave,
     clearInput,
     consumeShots: () => queued.splice(0),
+    consumeExplosions: () => explosions.splice(0),
   }
 }

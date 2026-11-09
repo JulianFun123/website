@@ -1,4 +1,5 @@
-export const ARENA_LIMIT = 14
+import { isWeapon, type WeaponId } from './weapons.ts'
+export const ARENA_LIMIT = 32
 export const MAX_PLAYERS = 12
 export const TICK_MS = 50
 export const ROUND_MS = 180000
@@ -24,16 +25,32 @@ export const ARENA_COVER: Cover[] = [
   { x: 0, z: 9, w: 3, d: 1.2, h: 0.8, kind: 'paper' },
   { x: -10, z: 0, w: 1.4, d: 2.4, h: 1.1, kind: 'planter' },
   { x: 10, z: 0, w: 1.4, d: 2.4, h: 1.1, kind: 'planter' },
+  ...[-1, 1].flatMap((side) => [
+    { x: side * 19, z: -18, w: 5.5, d: 1.6, h: 1.3, kind: 'paper' as const },
+    { x: side * 19, z: 18, w: 5.5, d: 1.6, h: 1.3, kind: 'paper' as const },
+    { x: side * 25, z: -10, w: 1.8, d: 6, h: 2.6, kind: 'album' as const },
+    { x: side * 25, z: 10, w: 1.8, d: 6, h: 2.6, kind: 'album' as const },
+    { x: side * 17, z: -5, w: 1.7, d: 3.4, h: 1.9, kind: 'planter' as const },
+    { x: side * 17, z: 5, w: 1.7, d: 3.4, h: 1.9, kind: 'planter' as const },
+    { x: side * 9, z: -21, w: 1.8, d: 4, h: 2.5, kind: 'album' as const },
+    { x: side * 9, z: 21, w: 1.8, d: 4, h: 2.5, kind: 'album' as const },
+    { x: side * 4, z: -17, w: 3, d: 1.4, h: 0.75, kind: 'paper' as const },
+    { x: side * 4, z: 17, w: 3, d: 1.4, h: 0.75, kind: 'paper' as const },
+  ]),
 ]
 export const SPAWNS = [
-  [-11, -11],
-  [11, 11],
-  [-11, 11],
-  [11, -11],
-  [0, -12],
-  [0, 12],
-  [-12, -4],
-  [12, 4],
+  [-28, -28],
+  [28, 28],
+  [-28, 28],
+  [28, -28],
+  [0, -29],
+  [0, 29],
+  [-29, -4],
+  [29, 4],
+  [-15, -28],
+  [15, 28],
+  [-28, 15],
+  [28, -15],
 ] as const
 export interface ShooterInput {
   forward: number
@@ -43,6 +60,9 @@ export interface ShooterInput {
   jump: boolean
   fire: boolean
   sprint: boolean
+  grenade: boolean
+  aim: boolean
+  weapon: WeaponId | null
 }
 export const idleInput = (): ShooterInput => ({
   forward: 0,
@@ -52,6 +72,9 @@ export const idleInput = (): ShooterInput => ({
   jump: false,
   fire: false,
   sprint: false,
+  grenade: false,
+  aim: false,
+  weapon: null,
 })
 export interface ArenaPlayer {
   id: string
@@ -67,6 +90,9 @@ export interface ArenaPlayer {
   deaths: number
   respawnAt: number
   shieldUntil: number
+  weapon: WeaponId
+  inventory: Record<WeaponId, number>
+  grenades: number
 }
 export interface ArenaShot {
   id: number
@@ -75,6 +101,24 @@ export interface ArenaShot {
   to: number[]
   hit: string | null
   tag: boolean
+  weapon: WeaponId
+}
+export interface ArenaGrenade {
+  id: number
+  owner: string
+  x: number
+  y: number
+  z: number
+  fuseAt: number
+}
+export interface ArenaExplosion {
+  id: number
+  owner: string
+  x: number
+  y: number
+  z: number
+  radius: number
+  hits: string[]
 }
 export interface ArenaEvent {
   id: number
@@ -89,6 +133,9 @@ export interface ArenaSnapshot {
   players: ArenaPlayer[]
   shots: ArenaShot[]
   events: ArenaEvent[]
+  pickups: { id: string; availableAt: number }[]
+  grenades: ArenaGrenade[]
+  explosions: ArenaExplosion[]
 }
 export function validInput(value: unknown): ShooterInput | null {
   if (!value || typeof value !== 'object') return null
@@ -98,6 +145,9 @@ export function validInput(value: unknown): ShooterInput | null {
   )
     return null
   if (![v.jump, v.fire, v.sprint].every((n) => typeof n === 'boolean')) return null
+  if (v.grenade !== undefined && typeof v.grenade !== 'boolean') return null
+  if (v.aim !== undefined && typeof v.aim !== 'boolean') return null
+  if (v.weapon !== undefined && v.weapon !== null && !isWeapon(v.weapon)) return null
   return {
     forward: Math.max(-1, Math.min(1, v.forward as number)),
     strafe: Math.max(-1, Math.min(1, v.strafe as number)),
@@ -106,6 +156,9 @@ export function validInput(value: unknown): ShooterInput | null {
     jump: v.jump as boolean,
     fire: v.fire as boolean,
     sprint: v.sprint as boolean,
+    grenade: v.grenade === true,
+    aim: v.aim === true,
+    weapon: isWeapon(v.weapon) ? v.weapon : null,
   }
 }
 export function cleanName(value: unknown) {
@@ -123,7 +176,7 @@ export function rayBox(
   max: number[],
 ): number | null {
   let near = 0,
-    far = 45
+    far = 100
   for (let axis = 0; axis < 3; axis++) {
     if (Math.abs(direction[axis]!) < 1e-8) {
       if (origin[axis]! < min[axis]! || origin[axis]! > max[axis]!) return null
@@ -135,7 +188,7 @@ export function rayBox(
     far = Math.min(far, Math.max(a, b))
     if (far < near) return null
   }
-  return near <= 45 && far >= 0 ? near : null
+  return near <= 100 && far >= 0 ? near : null
 }
 export function blockedAt(x: number, y: number, z: number) {
   return (

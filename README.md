@@ -137,7 +137,7 @@ visitors do not save layout changes.
 loaded on this route; the rest of the portfolio keeps its normal layout.
 The public lobby uses the native Nitro WebSocket route `/pip-arena` and holds
 up to 12 players. Rounds last three minutes, followed by a seven-second results
-break. Four camera flashes tag a player; respawns take three seconds and include
+break. Four standard camera flashes tag a player; respawns take three seconds and include
 a brief protective shield. Health regenerates after six quiet seconds.
 
 Desktop controls: WASD/arrows to move, mouse to aim, left mouse button to shoot
@@ -145,6 +145,25 @@ Desktop controls: WASD/arrows to move, mouse to aim, left mouse button to shoot
 Escape to release the mouse. Touch devices have movement, drag-to-look, hop and
 flash controls. Joining and resuming require a click for browser pointer lock.
 Players can copy `/shooter`'s URL to invite a friend into the same public room.
+
+The garden is 64 × 64 units (over five times the original area), with 29 pieces
+of cover, outer districts and a pickup minimap. Walk over a pedestal to collect
+equipment. Its item disappears for everyone and returns after 15 seconds.
+All 17 pads have walkable paths from spawn.
+
+Use **1–5 or the mouse wheel** to switch between collected weapons: the unlimited
+Pocket Camera, rapid-fire Firefly Sparkler (75 shots), seven-pellet Confetti Popper
+(16 shells), scoped Moonlight Lens (12 shots, bonus headshot damage), and the Paper
+Letter Opener (short-range knife, unlimited uses). **V** selects the knife;
+**right mouse** aims, with extra zoom for the long lens. Empty weapons fall back
+to the camera. Picking up the same weapon replenishes its ammunition.
+
+**G** throws a collected confetti grenade. Packs supply two grenades, with three
+as the carrying limit. Grenades have a 1.7-second fuse, bounce off the arena and
+cover, and deal radial damage with falloff and line-of-sight checks. They can
+also hurt their thrower; spawn shields protect against explosions. Respawning
+or starting a new round resets the inventory. Touch controls include the weapon
+belt, grenade button and an aim toggle.
 
 The server owns positions, collision, fire cooldowns, hit tests, health, scores
 and respawns. Clients submit only input. Lobby sizes, input rates and message
@@ -163,6 +182,28 @@ Arena geometry and the input protocol live in `shared/shooter/arena.ts`, the
 authoritative simulation in `server/utils/pipArena.ts`, and the renderer in
 `app/utils/pipShooterScene.ts`. Tests cover collision, jump landings, hit blocking,
 spawn protection, cooldowns, tags, respawns, capacity and round resets.
+
+### Pip’s Little Grand Prix
+
+`/cart` is a standalone 3D kart racer with original Pip characters. It stays out
+of the main navigation. Choose **Moss & Mail Circuit**, **Puddle Postcard Pass**,
+or **Moonlight Ribbonway**, then race seven AI drivers over three laps. The two
+pace settings change the rivals’ speed. Each track has boost pads, shared item
+boxes, sequential checkpoints and automatic rescue after falling off the road.
+
+Use WASD/arrows to accelerate, steer and brake; Space/Shift holds a drift and
+releasing a charged drift gives a mini boost. E uses the held item, R rescues the
+kart, and P/Escape pauses. Touch steering, brake, drift and item controls are
+included; auto-accelerate starts enabled on touch devices. Items are Pocket
+Sunshine (boost), Bubble Blanket (one-hit shield), Paper Plane (homing rival
+distraction) and Sleepy Puddle (a slippery present for the next driver).
+
+This game is single-player and runs locally, including its AI. Fastest times and
+their finishing places are saved per track under `pip-cart-records-v1` in
+localStorage. Track definitions and pure simulation live in `shared/cart/`,
+rendering in `app/utils/pipCartScene.ts`, and race/menu/persistence state in
+`app/composables/usePipCart.ts`. The Three.js renderer is client-only and disposed
+when leaving the page. No external kart-game assets or APIs are used.
 
 ### Pip & the Missing Colours
 

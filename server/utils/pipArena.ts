@@ -1,4 +1,10 @@
 import {
+  WEAPONS,
+  WEAPON_PICKUPS,
+  freshInventory,
+  type WeaponId,
+} from '../../shared/shooter/weapons.ts'
+import {
   ARENA_COVER,
   EYE_HEIGHT,
   MAX_PLAYERS,
@@ -14,6 +20,8 @@ import {
   type ArenaSnapshot,
   type ArenaShot,
   type ArenaEvent,
+  type ArenaGrenade,
+  type ArenaExplosion,
   type ShooterInput,
 } from '../../shared/shooter/arena.ts'
 
@@ -25,6 +33,7 @@ interface Session {
   lastInput: number
   lastShot: number
   lastDamage: number
+  lastGrenade: number
 }
 export class PipArena {
   sessions = new Map<string, Session>()
@@ -34,6 +43,9 @@ export class PipArena {
   shots: ArenaShot[] = []
   events: ArenaEvent[] = []
   private serial = 0
+  pickupTimers = new Map(WEAPON_PICKUPS.map((pickup) => [pickup.id, 0]))
+  grenades = new Map<number, ArenaGrenade & { vx: number; vy: number; vz: number }>()
+  explosions: ArenaExplosion[] = []
 
   join(id: string, name: unknown, colour: unknown, now: number) {
     if (this.sessions.has(id)) return true
@@ -55,6 +67,9 @@ export class PipArena {
       deaths: 0,
       respawnAt: 0,
       shieldUntil: 0,
+      weapon: 'camera',
+      inventory: freshInventory(),
+      grenades: 0,
     }
     const session: Session = {
       player,
@@ -64,6 +79,7 @@ export class PipArena {
       lastInput: now,
       lastShot: -1000,
       lastDamage: now,
+      lastGrenade: -1000,
     }
     this.sessions.set(id, session)
     this.spawn(session, now)
@@ -78,6 +94,7 @@ export class PipArena {
     if (!this.sessions.size) {
       this.endsAt = 0
       this.intermissionUntil = 0
+      this.resetPickups()
     }
   }
   input(id: string, input: ShooterInput, now: number) {
@@ -107,11 +124,16 @@ export class PipArena {
       health: 100,
       respawnAt: 0,
       shieldUntil: now + 1400,
+      weapon: 'camera',
+      inventory: freshInventory(),
+      grenades: 0,
     })
     session.vy = 0
     session.grounded = true
     session.input = idleInput()
     session.lastDamage = now
+    session.lastShot = -1000
+    session.lastGrenade = -1000
   }
   tick(now: number, dt: number) {
     dt = Math.min(0.05, Math.max(0, dt))
@@ -131,6 +153,7 @@ export class PipArena {
       this.round++
       this.endsAt = now + ROUND_MS
       this.intermissionUntil = 0
+      this.resetPickups()
       for (const session of this.sessions.values()) {
         session.player.kills = 0
         session.player.deaths = 0
@@ -146,13 +169,15 @@ export class PipArena {
       const input = now - session.lastInput < 350 ? session.input : idleInput()
       p.yaw = input === session.input ? input.yaw : p.yaw
       p.pitch = input === session.input ? input.pitch : p.pitch
+      if (input.weapon && p.inventory[input.weapon] !== 0) p.weapon = input.weapon
+      session.input.weapon = null
       if (input.jump && session.grounded) {
         session.vy = 7.9
         session.grounded = false
         session.input.jump = false
       }
       const length = Math.max(1, Math.hypot(input.forward, input.strafe)),
-        speed = input.sprint ? 6.5 : 4.6
+        speed = (input.sprint ? 6.5 : 4.6) * (p.weapon === 'knife' ? 1.12 : 1)
       const dx =
         ((-Math.sin(p.yaw) * input.forward + Math.cos(p.yaw) * input.strafe) / length) * speed * dt
       const dz =
@@ -178,65 +203,223 @@ export class PipArena {
         session.grounded = true
       } else session.grounded = false
       if (now - session.lastDamage > 6000) p.health = Math.min(100, p.health + dt * 12)
-      if (input.fire && now - session.lastShot >= 300 && now >= p.shieldUntil)
+      this.collect(session, now)
+      if (input.grenade) {
+        session.input.grenade = false
+        if (p.grenades > 0 && now >= p.shieldUntil && now - session.lastGrenade >= 1000)
+          this.throwGrenade(session, now)
+      }
+      if (
+        input.fire &&
+        now - session.lastShot >= WEAPONS[p.weapon].cooldown &&
+        now >= p.shieldUntil
+      )
         this.shoot(session, now)
     }
+    this.stepGrenades(now, dt)
+  }
+  private resetPickups() {
+    for (const id of this.pickupTimers.keys()) this.pickupTimers.set(id, 0)
+    this.grenades.clear()
+    this.explosions = []
+    this.shots = []
+  }
+  private collect(session: Session, now: number) {
+    const p = session.player
+    if (p.y > 0.9) return
+    for (const pickup of WEAPON_PICKUPS) {
+      if (
+        (this.pickupTimers.get(pickup.id) ?? 0) > now ||
+        Math.hypot(p.x - pickup.x, p.z - pickup.z) > 1.15
+      )
+        continue
+      if (pickup.kind === 'grenades') {
+        if (p.grenades >= 3) continue
+        p.grenades = Math.min(3, p.grenades + 2)
+      } else {
+        const weapon = WEAPONS[pickup.kind]
+        if (
+          weapon.ammo === -1
+            ? p.inventory[pickup.kind] === -1
+            : p.inventory[pickup.kind] >= weapon.ammo
+        )
+          continue
+        p.inventory[pickup.kind] = weapon.ammo
+        p.weapon = pickup.kind
+      }
+      this.pickupTimers.set(pickup.id, now + 15000)
+    }
+  }
+  private damage(target: Session, amount: number, owner: string, now: number) {
+    const p = target.player
+    if (p.health <= 0 || p.shieldUntil > now) return false
+    p.health = Math.max(0, p.health - amount)
+    target.lastDamage = now
+    if (p.health) return false
+    const attacker = this.sessions.get(owner)
+    if (attacker && attacker !== target) attacker.player.kills++
+    p.deaths++
+    p.respawnAt = now + 3000
+    target.input = idleInput()
+    this.note(
+      attacker === target
+        ? `${p.name} got a little too close to their own confetti.`
+        : `${attacker?.player.name ?? 'The confetti'} caught ${p.name} in a little flash.`,
+    )
+    return true
+  }
+  private throwGrenade(session: Session, now: number) {
+    const p = session.player
+    p.grenades--
+    session.lastGrenade = now
+    const id = ++this.serial,
+      speed = 13
+    this.grenades.set(id, {
+      id,
+      owner: p.id,
+      x: p.x,
+      y: p.y + EYE_HEIGHT,
+      z: p.z,
+      vx: -Math.sin(p.yaw) * Math.cos(p.pitch) * speed,
+      vy: 5 + Math.sin(p.pitch) * speed,
+      vz: -Math.cos(p.yaw) * Math.cos(p.pitch) * speed,
+      fuseAt: now + 1700,
+    })
+  }
+  private stepGrenades(now: number, dt: number) {
+    for (const g of this.grenades.values()) {
+      g.vy -= 14 * dt
+      const obstacle = (x: number, y: number, z: number) =>
+        blockedAt(x, Math.max(0.01, y - 0.12), z)
+      if (obstacle(g.x + g.vx * dt, g.y, g.z)) g.vx *= -0.55
+      else g.x += g.vx * dt
+      if (obstacle(g.x, g.y, g.z + g.vz * dt)) g.vz *= -0.55
+      else g.z += g.vz * dt
+      const previous = g.y
+      g.y += g.vy * dt
+      let floor = 0.14
+      for (const b of ARENA_COVER)
+        if (
+          Math.abs(g.x - b.x) < b.w / 2 + 0.1 &&
+          Math.abs(g.z - b.z) < b.d / 2 + 0.1 &&
+          previous >= b.h + 0.1 &&
+          g.y <= b.h + 0.14 &&
+          g.vy < 0
+        )
+          floor = Math.max(floor, b.h + 0.14)
+      if (g.y <= floor) {
+        g.y = floor
+        g.vy = Math.abs(g.vy) > 0.8 ? Math.abs(g.vy) * 0.38 : 0
+        g.vx *= 0.8
+        g.vz *= 0.8
+      }
+      if (now >= g.fuseAt) {
+        this.explode(g, now)
+        this.grenades.delete(g.id)
+      }
+    }
+  }
+  private explode(g: ArenaGrenade, now: number) {
+    const radius = 5.5,
+      hits: string[] = []
+    const origin = [g.x, g.y + 0.12, g.z]
+    for (const target of this.sessions.values()) {
+      const p = target.player
+      const offset = [p.x - g.x, p.y + 0.7 - origin[1]!, p.z - g.z]
+      const distance = Math.hypot(...offset)
+      if (distance > radius || p.health <= 0 || p.shieldUntil > now) continue
+      const direction = offset.map((v) => v / Math.max(0.001, distance))
+      const occluded = ARENA_COVER.some((b) => {
+        const hit = rayBox(
+          origin,
+          direction,
+          [b.x - b.w / 2, 0, b.z - b.d / 2],
+          [b.x + b.w / 2, b.h, b.z + b.d / 2],
+        )
+        return hit !== null && hit < distance - 0.1
+      })
+      if (occluded) continue
+      const amount = distance < 2 ? 100 : Math.round((100 * (radius - distance)) / (radius - 2))
+      if (amount <= 0) continue
+      hits.push(p.id)
+      this.damage(target, amount, g.owner, now)
+    }
+    this.explosions.push({
+      id: ++this.serial,
+      owner: g.owner,
+      x: g.x,
+      y: g.y,
+      z: g.z,
+      radius,
+      hits,
+    })
   }
   private shoot(session: Session, now: number) {
-    const p = session.player
+    const p = session.player,
+      weaponId = p.weapon,
+      weapon = WEAPONS[weaponId]
+    if (p.inventory[weaponId] === 0) {
+      p.weapon = 'camera'
+      return
+    }
     session.lastShot = now
-    const origin = [p.x, p.y + EYE_HEIGHT, p.z],
-      direction = [
-        -Math.sin(p.yaw) * Math.cos(p.pitch),
-        Math.sin(p.pitch),
-        -Math.cos(p.yaw) * Math.cos(p.pitch),
+    if (p.inventory[weaponId] > 0) p.inventory[weaponId]--
+    const origin = [p.x, p.y + EYE_HEIGHT, p.z]
+    for (let pellet = 0; pellet < weapon.pellets; pellet++) {
+      const spread =
+        weaponId === 'longlens' && session.input.aim
+          ? 0.0005
+          : weapon.spread * (session.input.aim ? 0.65 : 1)
+      const yaw = p.yaw + (Math.random() - 0.5) * spread * 2,
+        pitch = p.pitch + (Math.random() - 0.5) * spread * 2
+      const direction = [
+        -Math.sin(yaw) * Math.cos(pitch),
+        Math.sin(pitch),
+        -Math.cos(yaw) * Math.cos(pitch),
       ]
-    let distance = 42,
-      target: Session | null = null
-    for (const box of ARENA_COVER) {
-      const hit = rayBox(
-        origin,
-        direction,
-        [box.x - box.w / 2, 0, box.z - box.d / 2],
-        [box.x + box.w / 2, box.h, box.z + box.d / 2],
-      )
-      if (hit !== null && hit < distance) distance = hit
-    }
-    for (const other of this.sessions.values()) {
-      const q = other.player
-      if (other === session || q.health <= 0 || q.shieldUntil > now) continue
-      const hit = rayBox(
-        origin,
-        direction,
-        [q.x - PLAYER_RADIUS, q.y, q.z - PLAYER_RADIUS],
-        [q.x + PLAYER_RADIUS, q.y + PLAYER_HEIGHT, q.z + PLAYER_RADIUS],
-      )
-      if (hit !== null && hit < distance) {
-        distance = hit
-        target = other
+      let distance: number = weapon.range,
+        target: Session | null = null
+      for (const box of ARENA_COVER) {
+        const hit = rayBox(
+          origin,
+          direction,
+          [box.x - box.w / 2, 0, box.z - box.d / 2],
+          [box.x + box.w / 2, box.h, box.z + box.d / 2],
+        )
+        if (hit !== null && hit < distance) distance = hit
       }
-    }
-    let tag = false
-    if (target) {
-      target.player.health = Math.max(0, target.player.health - 25)
-      target.lastDamage = now
-      if (!target.player.health) {
-        tag = true
-        p.kills++
-        target.player.deaths++
-        target.player.respawnAt = now + 3000
-        target.input = idleInput()
-        this.note(`${p.name} caught ${target.player.name} in a little flash.`)
+      for (const other of this.sessions.values()) {
+        const q = other.player
+        if (other === session || q.health <= 0 || q.shieldUntil > now) continue
+        const hit = rayBox(
+          origin,
+          direction,
+          [q.x - PLAYER_RADIUS, q.y, q.z - PLAYER_RADIUS],
+          [q.x + PLAYER_RADIUS, q.y + PLAYER_HEIGHT, q.z + PLAYER_RADIUS],
+        )
+        if (hit !== null && hit < distance) {
+          distance = hit
+          target = other
+        }
       }
+      const headshot =
+        weaponId === 'longlens' &&
+        target &&
+        origin[1]! + direction[1]! * distance > target.player.y + 1.1
+      const tag = target
+        ? this.damage(target, weapon.damage * (headshot ? 1.5 : 1), p.id, now)
+        : false
+      this.shots.push({
+        id: ++this.serial,
+        owner: p.id,
+        from: origin,
+        to: origin.map((v, i) => v + direction[i]! * distance),
+        hit: target?.player.id ?? null,
+        tag,
+        weapon: weaponId,
+      })
     }
-    this.shots.push({
-      id: ++this.serial,
-      owner: p.id,
-      from: origin,
-      to: origin.map((v, i) => v + direction[i]! * distance),
-      hit: target?.player.id ?? null,
-      tag,
-    })
+    if (p.inventory[weaponId] === 0) p.weapon = 'camera'
   }
   snapshot(now: number): ArenaSnapshot {
     const snapshot: ArenaSnapshot = {
@@ -245,9 +428,15 @@ export class PipArena {
       endsAt: this.endsAt,
       intermissionUntil: this.intermissionUntil,
       round: this.round,
-      players: [...this.sessions.values()].map((s) => ({ ...s.player })),
+      players: [...this.sessions.values()].map((s) => ({
+        ...s.player,
+        inventory: { ...s.player.inventory },
+      })),
       shots: this.shots.splice(0),
       events: [...this.events],
+      pickups: [...this.pickupTimers].map(([id, availableAt]) => ({ id, availableAt })),
+      grenades: [...this.grenades.values()].map(({ vx, vy, vz, ...g }) => g),
+      explosions: this.explosions.splice(0),
     }
     return snapshot
   }
